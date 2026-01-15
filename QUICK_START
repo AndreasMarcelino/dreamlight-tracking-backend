@@ -1,0 +1,404 @@
+# 🚀 Quick Start Guide - Dreamlight Backend
+
+Panduan cepat untuk setup dan menjalankan Dreamlight Production Tracking Backend.
+
+## 📁 Struktur File Yang Sudah Dibuat
+
+```
+dreamlight-backend/
+├── src/
+│   ├── config/
+│   │   └── database.js                    # Konfigurasi MySQL + Sequelize
+│   │
+│   ├── controllers/
+│   │   ├── auth.controller.js             # Login, register, profile
+│   │   ├── project.controller.js          # CRUD projects + broadcaster/investor views
+│   │   ├── episode.controller.js          # CRUD episodes
+│   │   ├── milestone.controller.js        # CRUD milestones/tasks + crew dashboard
+│   │   ├── finance.controller.js          # CRUD finance + payroll
+│   │   ├── asset.controller.js            # Upload/download files
+│   │   └── dashboard.controller.js        # Dashboards untuk semua role
+│   │
+│   ├── middleware/
+│   │   ├── auth.middleware.js             # JWT authentication + role authorization
+│   │   ├── upload.middleware.js           # Multer file upload configuration
+│   │   └── validation.middleware.js       # express-validator rules
+│   │
+│   ├── models/
+│   │   ├── index.js                       # Model associations
+│   │   ├── User.js                        # User model
+│   │   ├── Project.js                     # Project model
+│   │   ├── Episode.js                     # Episode model
+│   │   ├── Milestone.js                   # Milestone model
+│   │   ├── Finance.js                     # Finance model
+│   │   └── Asset.js                       # Asset model
+│   │
+│   ├── routes/
+│   │   ├── auth.routes.js                 # Auth endpoints
+│   │   ├── project.routes.js              # Project endpoints
+│   │   ├── episode.routes.js              # Episode endpoints
+│   │   ├── milestone.routes.js            # Milestone endpoints
+│   │   ├── finance.routes.js              # Finance endpoints
+│   │   ├── asset.routes.js                # Asset endpoints
+│   │   └── dashboard.routes.js            # Dashboard endpoints
+│   │
+│   ├── utils/
+│   │   └── helpers.js                     # Helper functions
+│   │
+│   ├── database/
+│   │   └── seed.js                        # Database seeder
+│   │
+│   └── server.js                          # Main server file
+│
+├── uploads/                               # File uploads directory
+│   └── .gitkeep
+│
+├── .env                                   # Environment variables (create from .env.example)
+├── .env.example                           # Environment template
+├── .gitignore                             # Git ignore rules
+├── package.json                           # Dependencies
+├── setup.sh                               # Setup script
+├── README.md                              # Full documentation
+├── QUICK_START.md                         # This file
+└── Dreamlight_API.postman_collection.json # Postman collection
+```
+
+## ⚡ Setup dalam 5 Langkah
+
+### 1️⃣ Clone & Install
+
+```bash
+# Install dependencies
+npm install
+
+# Atau jalankan setup script
+chmod +x setup.sh
+./setup.sh
+```
+
+### 2️⃣ Setup Environment
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env dengan credentials MySQL Anda
+nano .env  # atau text editor favorit Anda
+```
+
+**Konfigurasi minimal yang harus diisi:**
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=dreamlight_db
+JWT_SECRET=your-secret-key-change-this
+```
+
+### 3️⃣ Buat Database MySQL
+
+```bash
+# Login ke MySQL
+mysql -u root -p
+
+# Buat database
+CREATE DATABASE dreamlight_db;
+exit;
+```
+
+### 4️⃣ Seed Database
+
+```bash
+npm run seed
+```
+
+Ini akan membuat:
+- 7 users (admin, producer, 3 crew, broadcaster, investor)
+- 3 projects (Movie, Series, TVC)
+- 3 episodes (untuk Series)
+- 6 milestones
+- 5 finance transactions
+
+### 5️⃣ Jalankan Server
+
+```bash
+# Development mode (auto-reload)
+npm run dev
+
+# Production mode
+npm start
+```
+
+Server akan berjalan di: **http://localhost:5000**
+
+---
+
+## 🔐 Login Credentials (Setelah Seed)
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@dreamlight.com | admin123 |
+| Producer | producer@dreamlight.com | producer123 |
+| Crew | john@dreamlight.com | crew123 |
+| Broadcaster | broadcaster@tvnasional.com | broadcaster123 |
+| Investor | investor@capital.com | investor123 |
+
+---
+
+## 🧪 Testing API
+
+### Opsi 1: Gunakan Postman
+
+1. Import file `Dreamlight_API.postman_collection.json` ke Postman
+2. Login dengan endpoint "Login" untuk mendapatkan token
+3. Token akan otomatis tersimpan di collection variable
+4. Test endpoint lainnya
+
+### Opsi 2: Gunakan cURL
+
+**Login:**
+```bash
+curl -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@dreamlight.com",
+    "password": "admin123"
+  }'
+```
+
+**Get Projects (dengan token):**
+```bash
+curl -X GET http://localhost:5000/api/projects \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+---
+
+## 📚 Endpoint Utama
+
+### Authentication
+```
+POST   /api/auth/login              # Login
+GET    /api/auth/me                 # Get current user
+POST   /api/auth/logout             # Logout
+```
+
+### Projects
+```
+GET    /api/projects                # Get all projects
+POST   /api/projects                # Create project (Admin/Producer)
+GET    /api/projects/:id            # Get project detail
+PUT    /api/projects/:id            # Update project (Admin/Producer)
+DELETE /api/projects/:id            # Delete project (Admin)
+```
+
+### Episodes
+```
+GET    /api/episodes?project_id=:id # Get episodes
+POST   /api/episodes                # Create episode (Admin/Producer)
+PUT    /api/episodes/:id            # Update episode (Admin/Producer)
+DELETE /api/episodes/:id            # Delete episode (Admin/Producer)
+```
+
+### Milestones (Tasks)
+```
+GET    /api/milestones              # Get milestones
+POST   /api/milestones              # Create milestone (Admin/Producer)
+PATCH  /api/milestones/:id/status   # Update status (Crew can update own)
+GET    /api/milestones/crew/my-tasks # Get crew tasks
+```
+
+### Finance
+```
+GET    /api/finance                 # Get transactions
+POST   /api/finance                 # Create transaction (Admin/Producer)
+GET    /api/finance/summary         # Get finance summary
+POST   /api/finance/pay-crew        # Pay crew honor (Admin/Producer)
+```
+
+### Assets (Files)
+```
+GET    /api/assets                  # Get assets
+POST   /api/assets                  # Upload file (Admin/Producer)
+GET    /api/assets/:id/download     # Download file
+DELETE /api/assets/:id              # Delete file (Admin/Producer)
+```
+
+### Dashboards
+```
+GET    /api/dashboard               # Auto-route based on role
+GET    /api/dashboard/admin         # Admin dashboard
+GET    /api/dashboard/crew          # Crew dashboard
+GET    /api/dashboard/broadcaster   # Broadcaster dashboard
+GET    /api/dashboard/investor      # Investor dashboard
+```
+
+---
+
+## 🎯 Role-Based Access
+
+### Admin
+- Full access ke semua endpoint
+- Bisa create/update/delete semua data
+- Akses ke admin dashboard
+
+### Producer
+- Manage projects, episodes, milestones, finance
+- Upload/manage files
+- View all reports
+
+### Crew
+- View & update own tasks/milestones
+- View own payment history
+- Limited access to project info
+
+### Broadcaster
+- View assigned projects & episodes
+- Download public files only
+- View progress of own content
+
+### Investor
+- View investment portfolio
+- View ROI & financial reports
+- Read-only access
+
+---
+
+## 🔧 Troubleshooting
+
+### Error: "ECONNREFUSED" saat connect ke database
+
+**Solusi:**
+1. Pastikan MySQL service running:
+   ```bash
+   # MacOS
+   brew services start mysql
+   
+   # Linux
+   sudo systemctl start mysql
+   
+   # Windows
+   # Start MySQL service dari Services panel
+   ```
+
+2. Cek credentials di `.env` sudah benar
+
+### Error: "ER_BAD_DB_ERROR: Unknown database"
+
+**Solusi:**
+```bash
+mysql -u root -p
+CREATE DATABASE dreamlight_db;
+exit;
+```
+
+### Error: Port 5000 already in use
+
+**Solusi:**
+1. Ganti PORT di `.env`:
+   ```env
+   PORT=5001
+   ```
+
+2. Atau kill process yang menggunakan port 5000:
+   ```bash
+   # MacOS/Linux
+   lsof -ti:5000 | xargs kill -9
+   
+   # Windows
+   netstat -ano | findstr :5000
+   taskkill /PID <PID> /F
+   ```
+
+### Error: File upload gagal
+
+**Solusi:**
+1. Pastikan folder `uploads/` ada:
+   ```bash
+   mkdir -p uploads
+   ```
+
+2. Cek permission folder:
+   ```bash
+   chmod -R 755 uploads/
+   ```
+
+---
+
+## 🚀 Deploy ke Production
+
+### 1. Environment Variables
+```env
+NODE_ENV=production
+DB_HOST=your-production-db-host
+JWT_SECRET=very-strong-secret-key-in-production
+CORS_ORIGIN=https://your-frontend-domain.com
+```
+
+### 2. Menggunakan PM2
+```bash
+npm install -g pm2
+
+# Start application
+pm2 start src/server.js --name dreamlight-api
+
+# Save PM2 process list
+pm2 save
+
+# Setup auto-start on reboot
+pm2 startup
+```
+
+### 3. Dengan Docker (Optional)
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 5000
+CMD ["npm", "start"]
+```
+
+```bash
+docker build -t dreamlight-api .
+docker run -p 5000:5000 --env-file .env dreamlight-api
+```
+
+---
+
+## 📖 Dokumentasi Lengkap
+
+Lihat `README.md` untuk dokumentasi lengkap API, termasuk:
+- Detail setiap endpoint
+- Request/response examples
+- Validation rules
+- Error handling
+- Best practices
+
+---
+
+## 🆘 Butuh Bantuan?
+
+1. Cek `README.md` untuk dokumentasi lengkap
+2. Import Postman collection untuk testing
+3. Lihat seeder (`src/database/seed.js`) untuk contoh data
+4. Contact: tech@dreamlight.com
+
+---
+
+## ✅ Checklist Setup
+
+- [ ] Install dependencies (`npm install`)
+- [ ] Copy `.env.example` ke `.env`
+- [ ] Update credentials MySQL di `.env`
+- [ ] Buat database MySQL
+- [ ] Run seeder (`npm run seed`)
+- [ ] Start server (`npm run dev`)
+- [ ] Test login endpoint
+- [ ] Import Postman collection
+- [ ] Test beberapa endpoint
+
+---
+
+**Happy Coding! 🎬🚀**
