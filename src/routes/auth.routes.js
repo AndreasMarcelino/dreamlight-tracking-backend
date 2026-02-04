@@ -6,7 +6,8 @@ const {
   logout,
   getMe,
   updateProfile,
-  updatePassword
+  updatePassword,
+  getAllUsers
 } = require('../controllers/auth.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 
@@ -23,5 +24,6 @@ router.put('/update-password', updatePassword);
 
 // Admin only routes
 router.post('/register', authorize('admin'), register);
+router.get('/users', authorize('admin'), getAllUsers);
 
 module.exports = router;

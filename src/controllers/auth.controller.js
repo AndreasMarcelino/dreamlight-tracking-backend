@@ -208,3 +208,24 @@ exports.updatePassword = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get all users (for admin)
+// @route   GET /api/auth/users
+// @access  Private (Admin)
+exports.getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.findAll({
+      attributes: { exclude: ['password'] },
+      order: [['created_at', 'DESC']]
+    });
+
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      data: users
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

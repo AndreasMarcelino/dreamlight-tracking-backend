@@ -15,6 +15,7 @@ const db = require('./config/database');
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
+const userRoutes = require('./routes/user.routes');
 const projectRoutes = require('./routes/project.routes');
 const episodeRoutes = require('./routes/episode.routes');
 const milestoneRoutes = require('./routes/milestone.routes');
@@ -46,6 +47,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/episodes', episodeRoutes);
 app.use('/api/milestones', milestoneRoutes);

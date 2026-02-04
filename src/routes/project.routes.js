@@ -10,6 +10,7 @@ const {
   getInvestorProjects
 } = require('../controllers/project.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
+const { validateProject, validate } = require('../middleware/validation.middleware');
 
 // All routes require authentication
 router.use(protect);
@@ -29,11 +30,24 @@ router.get('/investor/my-investments',
 // General project routes
 router.route('/')
   .get(getAllProjects)
-  .post(authorize('admin', 'producer'), createProject);
+  .post(
+    authorize('admin', 'producer'),
+    validateProject,
+    validate,
+    createProject
+  );
 
 router.route('/:id')
   .get(getProjectById)
-  .put(authorize('admin', 'producer'), updateProject)
-  .delete(authorize('admin'), deleteProject);
+  .put(
+    authorize('admin', 'producer'),
+    validateProject,
+    validate,
+    updateProject
+  )
+  .delete(
+    authorize('admin'),
+    deleteProject
+  );
 
 module.exports = router;

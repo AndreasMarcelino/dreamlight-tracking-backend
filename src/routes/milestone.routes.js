@@ -10,6 +10,7 @@ const {
   getCrewTasks
 } = require('../controllers/milestone.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
+const { validateMilestone, validate } = require('../middleware/validation.middleware');
 
 // All routes require authentication
 router.use(protect);
@@ -23,11 +24,24 @@ router.patch('/:id/status', updateMilestoneStatus);
 // General milestone routes
 router.route('/')
   .get(getMilestones)
-  .post(authorize('admin', 'producer'), createMilestone);
+  .post(
+    authorize('admin', 'producer'),
+    validateMilestone,
+    validate,
+    createMilestone
+  );
 
 router.route('/:id')
   .get(getMilestoneById)
-  .put(authorize('admin', 'producer'), updateMilestone)
-  .delete(authorize('admin', 'producer'), deleteMilestone);
+  .put(
+    authorize('admin', 'producer'),
+    validateMilestone,
+    validate,
+    updateMilestone
+  )
+  .delete(
+    authorize('admin', 'producer'),
+    deleteMilestone
+  );
 
 module.exports = router;
