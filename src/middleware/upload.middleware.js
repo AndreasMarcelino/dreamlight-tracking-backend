@@ -1,12 +1,13 @@
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
 // Create uploads directory if it doesn't exist
 // Use /tmp in production (Vercel) and ./uploads in development
-const uploadDir = process.env.NODE_ENV === 'production' 
-  ? '/tmp/uploads' 
-  : (process.env.UPLOAD_PATH || './uploads');
+const uploadDir =
+  process.env.NODE_ENV === "production"
+    ? "/tmp/uploads"
+    : process.env.UPLOAD_PATH || "./uploads";
 
 // Only create directory if we can (not in read-only filesystem)
 try {
@@ -14,49 +15,64 @@ try {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 } catch (error) {
-  console.warn('Could not create upload directory:', error.message);
+  console.warn("Could not create upload directory:", error.message);
 }
 
 // Configure storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const projectId = req.body.project_id;
-    
+
     // Create project-specific folder
     const projectDir = path.join(uploadDir, `project_${projectId}`);
-    
+
     try {
       if (!fs.existsSync(projectDir)) {
         fs.mkdirSync(projectDir, { recursive: true });
       }
       cb(null, projectDir);
     } catch (error) {
-      console.error('Error creating project directory:', error);
+      console.error("Error creating project directory:", error);
       cb(null, uploadDir); // Fallback to main upload directory
     }
   },
   filename: function (req, file, cb) {
     // Generate unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
     const nameWithoutExt = path.basename(file.originalname, ext);
-    
+
     // Sanitize filename
-    const sanitizedName = nameWithoutExt.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    
+    const sanitizedName = nameWithoutExt
+      .replace(/[^a-z0-9]/gi, "_")
+      .toLowerCase();
+
     cb(null, `${sanitizedName}-${uniqueSuffix}${ext}`);
-  }
+  },
 });
 
 // File filter
 const fileFilter = (req, file, cb) => {
   // Define allowed file types by category
   const allowedTypes = {
-    'Script': ['.pdf', '.doc', '.docx', '.txt'],
-    'Contract': ['.pdf', '.doc', '.docx'],
-    'Preview Video': ['.mp4', '.mov', '.avi', '.mkv', '.webm'],
-    'Master Video': ['.mp4', '.mov', '.avi', '.mkv', '.mxf', '.prores'],
-    'Other': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar', '.jpg', '.jpeg', '.png']
+    Script: [".pdf", ".doc", ".docx", ".txt"],
+    Contract: [".pdf", ".doc", ".docx"],
+    "Preview Video": [".mp4", ".mov", ".avi", ".mkv", ".webm"],
+    "Master Video": [".mp4", ".mov", ".avi", ".mkv", ".mxf", ".prores"],
+    Other: [
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+      ".ppt",
+      ".pptx",
+      ".zip",
+      ".rar",
+      ".jpg",
+      ".jpeg",
+      ".png",
+    ],
   };
 
   const category = req.body.category;
@@ -67,15 +83,28 @@ const fileFilter = (req, file, cb) => {
     if (allowedTypes[category].includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error(`File type ${ext} not allowed for category ${category}`), false);
+      cb(
+        new Error(`File type ${ext} not allowed for category ${category}`),
+        false,
+      );
     }
   } else {
     // If no category or unknown category, allow common file types
     const commonTypes = [
-      '.pdf', '.doc', '.docx', '.txt',
-      '.mp4', '.mov', '.avi', '.mkv',
-      '.jpg', '.jpeg', '.png', '.gif',
-      '.zip', '.rar'
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".txt",
+      ".mp4",
+      ".mov",
+      ".avi",
+      ".mkv",
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".zip",
+      ".rar",
     ];
 
     if (commonTypes.includes(ext)) {
@@ -91,33 +120,33 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 52428800 // 50MB default
-  }
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 52428800, // 50MB default
+  },
 });
 
 // Error handler middleware
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     // Multer-specific errors
-    if (err.code === 'LIMIT_FILE_SIZE') {
+    if (err.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
         success: false,
-        message: `File too large. Maximum size is ${(parseInt(process.env.MAX_FILE_SIZE) || 52428800) / 1024 / 1024}MB`
+        message: `File too large. Maximum size is ${(parseInt(process.env.MAX_FILE_SIZE) || 52428800) / 1024 / 1024}MB`,
       });
     }
-    
+
     return res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   } else if (err) {
     // Other errors (like file filter errors)
     return res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
-  
+
   next();
 };
 
