@@ -38,7 +38,7 @@ app.use(cookieParser());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 200 // limit each IP to 100 requests per windowMs
 });
 app.use('/api/', limiter);
 
@@ -54,6 +54,10 @@ app.use('/api/milestones', milestoneRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+
+app.get('/', (req, res) => {
+  res.send('Welcome to the Dreamlight API');
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -105,6 +109,9 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Only start server if not in serverless environment (Vercel)
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  startServer();
+}
 
 module.exports = app;

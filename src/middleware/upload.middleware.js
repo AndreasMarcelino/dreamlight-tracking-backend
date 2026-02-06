@@ -3,9 +3,18 @@ const path = require('path');
 const fs = require('fs');
 
 // Create uploads directory if it doesn't exist
-const uploadDir = process.env.UPLOAD_PATH || './uploads';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Use /tmp in production (Vercel) and ./uploads in development
+const uploadDir = process.env.NODE_ENV === 'production' 
+  ? '/tmp/uploads' 
+  : (process.env.UPLOAD_PATH || './uploads');
+
+// Only create directory if we can (not in read-only filesystem)
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (error) {
+  console.warn('Could not create upload directory:', error.message);
 }
 
 // Configure storage
@@ -16,11 +25,15 @@ const storage = multer.diskStorage({
     // Create project-specific folder
     const projectDir = path.join(uploadDir, `project_${projectId}`);
     
-    if (!fs.existsSync(projectDir)) {
-      fs.mkdirSync(projectDir, { recursive: true });
+    try {
+      if (!fs.existsSync(projectDir)) {
+        fs.mkdirSync(projectDir, { recursive: true });
+      }
+      cb(null, projectDir);
+    } catch (error) {
+      console.error('Error creating project directory:', error);
+      cb(null, uploadDir); // Fallback to main upload directory
     }
-    
-    cb(null, projectDir);
   },
   filename: function (req, file, cb) {
     // Generate unique filename
