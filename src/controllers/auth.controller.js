@@ -216,7 +216,7 @@ exports.getAllUsers = async (req, res, next) => {
   try {
     const users = await User.findAll({
       attributes: { exclude: ['password'] },
-      order: [['created_at', 'DESC']]
+      order: [['createdAt', 'DESC']]
     });
 
     res.status(200).json({

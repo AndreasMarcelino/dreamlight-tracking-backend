@@ -92,7 +92,7 @@ const startServer = async () => {
     console.log('✓ Database connected successfully');
     
     // Sync database models (use { force: true } only in development to drop tables)
-    await db.sync({ alter: true });
+    // await db.sync({ alter: true });
     console.log('✓ Database models synchronized');
     
     app.listen(PORT, () => {

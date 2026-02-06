@@ -50,7 +50,7 @@ exports.getAssets = async (req, res, next) => {
           attributes: ['id', 'name']
         }
       ],
-      order: [['created_at', 'DESC']]
+      order: [['createdAt', 'DESC']]
     });
 
     res.status(200).json({
@@ -347,7 +347,7 @@ exports.getBroadcasterAssets = async (req, res, next) => {
           required: false
         }
       ],
-      order: [['created_at', 'DESC']]
+      order: [['createdAt', 'DESC']]
     });
 
     // Group by category
