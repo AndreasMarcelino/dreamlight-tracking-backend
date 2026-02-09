@@ -28,20 +28,20 @@ const { handleMulterError } = require("./middleware/upload.middleware");
 app.use(helmet());
 
 // CORS configuration for multiple origins
-const allowedOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:3000']; // fallback untuk development
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+  : ["http://localhost:3000"]; // fallback untuk development
 
 app.use(
   cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (like mobile apps or Postman)
       if (!origin) return callback(null, true);
-      
+
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
