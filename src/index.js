@@ -25,7 +25,7 @@ const dashboardRoutes = require("./routes/dashboard.routes");
 const { handleMulterError } = require("./middleware/upload.middleware");
 
 // Trust proxy - required for rate limiting behind reverse proxy (Vercel, AWS Lambda, etc.)
-app.set("trust proxy", true);
+app.set("trust proxy", 1);
 
 // Middleware
 app.use(helmet());
@@ -58,7 +58,7 @@ app.use(cookieParser());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 100 requests per windowMs
+  max: 300, // limit each IP to 300 requests per windowMs
 });
 app.use("/api/", limiter);
 
