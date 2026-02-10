@@ -31,7 +31,7 @@ exports.getAdminDashboard = async (req, res, next) => {
           attributes: ['id', 'phase_category', 'work_status']
         }
       ],
-      order: [['created_at', 'DESC']]
+      order: [['createdAt', 'DESC']]
     });
 
     // Calculate progress stats for each project

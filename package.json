@@ -2,27 +2,31 @@
   "name": "dreamlight-backend",
   "version": "1.0.0",
   "description": "Dreamlight Production Tracking Backend API",
-  "main": "src/server.js",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
     "migrate": "node src/database/migrate.js",
-    "seed": "node src/database/seed.js"
+    "seed": "node src/database/seed.js",
+    "test:db": "node src/database/test-connection.js",
+    "vercel-build": "npm install pg pg-hstore --save"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mysql2": "^3.6.5",
-    "sequelize": "^6.35.0",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "express-validator": "^7.0.1",
-    "multer": "^1.4.5-lts.1",
+    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
+    "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
-    "cookie-parser": "^1.4.6"
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.6.5",
+    "pg": "^8.18.0",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.35.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

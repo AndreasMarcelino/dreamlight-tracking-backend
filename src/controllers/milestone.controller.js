@@ -35,7 +35,7 @@ exports.getMilestones = async (req, res, next) => {
           required: false
         }
       ],
-      order: [['created_at', 'DESC']]
+      order: [['createdAt', 'DESC']]
     });
 
     res.status(200).json({
