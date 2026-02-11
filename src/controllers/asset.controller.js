@@ -1,32 +1,33 @@
-const { Asset, Project, Episode, User } = require('../models');
-const path = require('path');
-const fs = require('fs').promises;
+const { Asset, Project, Episode, User } = require("../models");
+const path = require("path");
+const fs = require("fs").promises;
 
 // @desc    Get assets with filters
 // @route   GET /api/assets
 // @access  Private
 exports.getAssets = async (req, res, next) => {
   try {
-    const { project_id, episode_id, category, is_public_to_broadcaster } = req.query;
+    const { project_id, episode_id, category, is_public_to_broadcaster } =
+      req.query;
 
     const where = {};
     if (project_id) where.project_id = project_id;
     if (episode_id) where.episode_id = episode_id;
     if (category) where.category = category;
     if (is_public_to_broadcaster !== undefined) {
-      where.is_public_to_broadcaster = is_public_to_broadcaster === 'true';
+      where.is_public_to_broadcaster = is_public_to_broadcaster === "true";
     }
 
     // If user is broadcaster, only show public assets
-    if (req.user.role === 'broadcaster') {
+    if (req.user.role === "broadcaster") {
       where.is_public_to_broadcaster = true;
-      
+
       // Also filter by client_id
       const projects = await Project.findAll({
         where: { client_id: req.user.id },
-        attributes: ['id']
+        attributes: ["id"],
       });
-      const projectIds = projects.map(p => p.id);
+      const projectIds = projects.map((p) => p.id);
       where.project_id = projectIds;
     }
 
@@ -35,28 +36,28 @@ exports.getAssets = async (req, res, next) => {
       include: [
         {
           model: Project,
-          as: 'project',
-          attributes: ['id', 'title']
+          as: "project",
+          attributes: ["id", "title"],
         },
         {
           model: Episode,
-          as: 'episode',
-          attributes: ['id', 'title', 'episode_number'],
-          required: false
+          as: "episode",
+          attributes: ["id", "title", "episode_number"],
+          required: false,
         },
         {
           model: User,
-          as: 'uploader',
-          attributes: ['id', 'name']
-        }
+          as: "uploader",
+          attributes: ["id", "name"],
+        },
       ],
-      order: [['created_at', 'DESC']]
+      order: [["created_at", "DESC"]],
     });
 
     res.status(200).json({
       success: true,
       count: assets.length,
-      data: assets
+      data: assets,
     });
   } catch (error) {
     next(error);
@@ -69,31 +70,34 @@ exports.getAssets = async (req, res, next) => {
 exports.getAssetById = async (req, res, next) => {
   try {
     const asset = await Asset.findByPk(req.params.id, {
-      include: ['project', 'episode', 'uploader']
+      include: ["project", "episode", "uploader"],
     });
 
     if (!asset) {
       return res.status(404).json({
         success: false,
-        message: 'Asset not found'
+        message: "Asset not found",
       });
     }
 
     // Check access for broadcaster
-    if (req.user.role === 'broadcaster') {
+    if (req.user.role === "broadcaster") {
       const project = await Project.findByPk(asset.project_id);
-      
-      if (project.client_id !== req.user.id || !asset.is_public_to_broadcaster) {
+
+      if (
+        project.client_id !== req.user.id ||
+        !asset.is_public_to_broadcaster
+      ) {
         return res.status(403).json({
           success: false,
-          message: 'You do not have access to this file'
+          message: "You do not have access to this file",
         });
       }
     }
 
     res.status(200).json({
       success: true,
-      data: asset
+      data: asset,
     });
   } catch (error) {
     next(error);
@@ -108,41 +112,37 @@ exports.uploadAsset = async (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'Please upload a file'
+        message: "Please upload a file",
       });
     }
 
-    const {
-      project_id,
-      episode_id,
-      category,
-      is_public_to_broadcaster
-    } = req.body;
+    const { project_id, episode_id, category, is_public_to_broadcaster } =
+      req.body;
 
     // Verify project exists
     const project = await Project.findByPk(project_id);
     if (!project) {
       // Delete uploaded file if project not found
       await fs.unlink(req.file.path);
-      
+
       return res.status(404).json({
         success: false,
-        message: 'Project not found'
+        message: "Project not found",
       });
     }
 
     // Verify episode if provided
     if (episode_id) {
       const episode = await Episode.findOne({
-        where: { id: episode_id, project_id }
+        where: { id: episode_id, project_id },
       });
-      
+
       if (!episode) {
         await fs.unlink(req.file.path);
-        
+
         return res.status(404).json({
           success: false,
-          message: 'Episode not found or does not belong to this project'
+          message: "Episode not found or does not belong to this project",
         });
       }
     }
@@ -155,25 +155,136 @@ exports.uploadAsset = async (req, res, next) => {
       file_type: req.file.mimetype,
       file_size: req.file.size,
       category,
-      is_public_to_broadcaster: is_public_to_broadcaster === 'true' || is_public_to_broadcaster === true,
-      uploaded_by: req.user.id
+      is_public_to_broadcaster:
+        is_public_to_broadcaster === "true" ||
+        is_public_to_broadcaster === true,
+      uploaded_by: req.user.id,
     });
 
     // Return asset with relations
     const uploadedAsset = await Asset.findByPk(asset.id, {
-      include: ['project', 'episode', 'uploader']
+      include: ["project", "episode", "uploader"],
     });
 
     res.status(201).json({
       success: true,
-      message: 'File berhasil diupload!',
-      data: uploadedAsset
+      message: "File berhasil diupload!",
+      data: uploadedAsset,
     });
   } catch (error) {
     // If error occurs, delete the uploaded file
     if (req.file) {
-      await fs.unlink(req.file.path).catch(err => console.error(err));
+      await fs.unlink(req.file.path).catch((err) => console.error(err));
     }
+    next(error);
+  }
+};
+
+// @desc    Add external link asset (Google Drive, Dropbox, YouTube, etc.)
+// @route   POST /api/assets/external-link
+// @access  Private (Admin, Producer)
+exports.addExternalLink = async (req, res, next) => {
+  try {
+    const {
+      project_id,
+      episode_id,
+      file_name,
+      external_url,
+      category,
+      is_public_to_broadcaster,
+    } = req.body;
+
+    // Validate required fields
+    if (!external_url || !file_name) {
+      return res.status(400).json({
+        success: false,
+        message: "File name and external URL are required",
+      });
+    }
+
+    // Verify project exists
+    const project = await Project.findByPk(project_id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    // Verify episode if provided
+    if (episode_id) {
+      const episode = await Episode.findOne({
+        where: { id: episode_id, project_id },
+      });
+
+      if (!episode) {
+        return res.status(404).json({
+          success: false,
+          message: "Episode not found or does not belong to this project",
+        });
+      }
+    }
+
+    // Detect link type from URL
+    let linkType = "other";
+    const url = external_url.toLowerCase();
+    if (url.includes("drive.google.com") || url.includes("docs.google.com")) {
+      linkType = "google_drive";
+    } else if (url.includes("dropbox.com")) {
+      linkType = "dropbox";
+    } else if (url.includes("youtube.com") || url.includes("youtu.be")) {
+      linkType = "youtube";
+    } else if (url.includes("vimeo.com")) {
+      linkType = "vimeo";
+    } else if (url.includes("onedrive.live.com") || url.includes("1drv.ms")) {
+      linkType = "onedrive";
+    }
+
+    // Detect file type from URL or name
+    let fileType = "link";
+    const name = file_name.toLowerCase();
+    if (
+      name.includes(".mp4") ||
+      name.includes(".mov") ||
+      name.includes(".avi") ||
+      linkType === "youtube" ||
+      linkType === "vimeo"
+    ) {
+      fileType = "video/external";
+    } else if (name.includes(".pdf")) {
+      fileType = "application/pdf";
+    } else if (name.includes(".doc")) {
+      fileType = "application/msword";
+    }
+
+    const asset = await Asset.create({
+      project_id,
+      episode_id: episode_id || null,
+      file_name,
+      file_path: null,
+      file_type: fileType,
+      file_size: null,
+      category,
+      is_public_to_broadcaster:
+        is_public_to_broadcaster === "true" ||
+        is_public_to_broadcaster === true,
+      is_external: true,
+      external_url,
+      link_type: linkType,
+      uploaded_by: req.user.id,
+    });
+
+    // Return asset with relations
+    const createdAsset = await Asset.findByPk(asset.id, {
+      include: ["project", "episode", "uploader"],
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Link berhasil ditambahkan!",
+      data: createdAsset,
+    });
+  } catch (error) {
     next(error);
   }
 };
@@ -188,19 +299,19 @@ exports.updateAsset = async (req, res, next) => {
     if (!asset) {
       return res.status(404).json({
         success: false,
-        message: 'Asset not found'
+        message: "Asset not found",
       });
     }
 
     // Check if user is uploader or has admin/producer role
     if (
-      req.user.role !== 'admin' && 
-      req.user.role !== 'producer' && 
+      req.user.role !== "admin" &&
+      req.user.role !== "producer" &&
       asset.uploaded_by !== req.user.id
     ) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to update this asset'
+        message: "Not authorized to update this asset",
       });
     }
 
@@ -208,15 +319,17 @@ exports.updateAsset = async (req, res, next) => {
 
     await asset.update({
       category: category || asset.category,
-      is_public_to_broadcaster: is_public_to_broadcaster !== undefined 
-        ? (is_public_to_broadcaster === 'true' || is_public_to_broadcaster === true)
-        : asset.is_public_to_broadcaster
+      is_public_to_broadcaster:
+        is_public_to_broadcaster !== undefined
+          ? is_public_to_broadcaster === "true" ||
+            is_public_to_broadcaster === true
+          : asset.is_public_to_broadcaster,
     });
 
     res.status(200).json({
       success: true,
-      message: 'Asset metadata updated successfully',
-      data: asset
+      message: "Asset metadata updated successfully",
+      data: asset,
     });
   } catch (error) {
     next(error);
@@ -229,22 +342,25 @@ exports.updateAsset = async (req, res, next) => {
 exports.downloadAsset = async (req, res, next) => {
   try {
     const asset = await Asset.findByPk(req.params.id, {
-      include: ['project']
+      include: ["project"],
     });
 
     if (!asset) {
       return res.status(404).json({
         success: false,
-        message: 'Asset not found'
+        message: "Asset not found",
       });
     }
 
     // Security check for broadcaster
-    if (req.user.role === 'broadcaster') {
-      if (asset.project.client_id !== req.user.id || !asset.is_public_to_broadcaster) {
+    if (req.user.role === "broadcaster") {
+      if (
+        asset.project.client_id !== req.user.id ||
+        !asset.is_public_to_broadcaster
+      ) {
         return res.status(403).json({
           success: false,
-          message: 'Anda tidak memiliki akses ke file ini'
+          message: "Anda tidak memiliki akses ke file ini",
         });
       }
     }
@@ -255,16 +371,19 @@ exports.downloadAsset = async (req, res, next) => {
     } catch (err) {
       return res.status(404).json({
         success: false,
-        message: 'File not found on server'
+        message: "File not found on server",
       });
     }
 
     // Set headers for download
-    res.setHeader('Content-Disposition', `attachment; filename="${asset.file_name}"`);
-    res.setHeader('Content-Type', asset.file_type);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${asset.file_name}"`,
+    );
+    res.setHeader("Content-Type", asset.file_type);
 
     // Stream file to response
-    const fileStream = require('fs').createReadStream(asset.file_path);
+    const fileStream = require("fs").createReadStream(asset.file_path);
     fileStream.pipe(res);
   } catch (error) {
     next(error);
@@ -281,19 +400,19 @@ exports.deleteAsset = async (req, res, next) => {
     if (!asset) {
       return res.status(404).json({
         success: false,
-        message: 'Asset not found'
+        message: "Asset not found",
       });
     }
 
     // Check if user is uploader or has admin/producer role
     if (
-      req.user.role !== 'admin' && 
-      req.user.role !== 'producer' && 
+      req.user.role !== "admin" &&
+      req.user.role !== "producer" &&
       asset.uploaded_by !== req.user.id
     ) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to delete this asset'
+        message: "Not authorized to delete this asset",
       });
     }
 
@@ -301,7 +420,7 @@ exports.deleteAsset = async (req, res, next) => {
     try {
       await fs.unlink(asset.file_path);
     } catch (err) {
-      console.error('Error deleting physical file:', err);
+      console.error("Error deleting physical file:", err);
     }
 
     // Delete database record
@@ -309,7 +428,7 @@ exports.deleteAsset = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'File dihapus permanen'
+      message: "File dihapus permanen",
     });
   } catch (error) {
     next(error);
@@ -324,46 +443,46 @@ exports.getBroadcasterAssets = async (req, res, next) => {
     // Get projects where user is client
     const projects = await Project.findAll({
       where: { client_id: req.user.id },
-      attributes: ['id']
+      attributes: ["id"],
     });
 
-    const projectIds = projects.map(p => p.id);
+    const projectIds = projects.map((p) => p.id);
 
     const assets = await Asset.findAll({
       where: {
         project_id: projectIds,
-        is_public_to_broadcaster: true
+        is_public_to_broadcaster: true,
       },
       include: [
         {
           model: Project,
-          as: 'project',
-          attributes: ['id', 'title']
+          as: "project",
+          attributes: ["id", "title"],
         },
         {
           model: Episode,
-          as: 'episode',
-          attributes: ['id', 'title', 'episode_number'],
-          required: false
-        }
+          as: "episode",
+          attributes: ["id", "title", "episode_number"],
+          required: false,
+        },
       ],
-      order: [['created_at', 'DESC']]
+      order: [["created_at", "DESC"]],
     });
 
     // Group by category
     const groupedAssets = {
-      scripts: assets.filter(a => a.category === 'Script'),
-      contracts: assets.filter(a => a.category === 'Contract'),
-      previews: assets.filter(a => a.category === 'Preview Video'),
-      masters: assets.filter(a => a.category === 'Master Video'),
-      others: assets.filter(a => a.category === 'Other')
+      scripts: assets.filter((a) => a.category === "Script"),
+      contracts: assets.filter((a) => a.category === "Contract"),
+      previews: assets.filter((a) => a.category === "Preview Video"),
+      masters: assets.filter((a) => a.category === "Master Video"),
+      others: assets.filter((a) => a.category === "Other"),
     };
 
     res.status(200).json({
       success: true,
       count: assets.length,
       data: assets,
-      grouped: groupedAssets
+      grouped: groupedAssets,
     });
   } catch (error) {
     next(error);

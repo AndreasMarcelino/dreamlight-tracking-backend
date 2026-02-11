@@ -1,4 +1,4 @@
-const { Sequelize } = require('sequelize');
+const { Sequelize } = require("sequelize");
 
 const sequelize = new Sequelize(
   process.env.DB_NAME,
@@ -7,21 +7,28 @@ const sequelize = new Sequelize(
   {
     host: process.env.DB_HOST,
     port: process.env.DB_PORT || 3306,
-    dialect: 'mysql',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    dialect: "mysql",
+    logging: process.env.NODE_ENV === "development" ? console.log : false,
     pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
+      max: 20, // Increased from 5
+      min: 2, // Keep minimum connections
+      acquire: 60000, // Increased timeout to 60s
+      idle: 10000,
+      evict: 1000, // Check for idle connections every 1s
+    },
+    retry: {
+      max: 3, // Retry failed queries up to 3 times
     },
     define: {
       timestamps: true,
       underscored: true,
-      createdAt: 'created_at',
-      updatedAt: 'updated_at'
-    }
-  }
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
 );
+
+// Connection health check
+sequelize.connectionManager.initPools();
 
 module.exports = sequelize;

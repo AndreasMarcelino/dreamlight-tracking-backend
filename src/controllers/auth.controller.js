@@ -1,10 +1,11 @@
-const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const jwt = require("jsonwebtoken");
+const { Op } = require("sequelize");
+const { User } = require("../models");
 
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
+    expiresIn: process.env.JWT_EXPIRE || "7d",
   });
 };
 
@@ -19,20 +20,20 @@ exports.login = async (req, res, next) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: "Please provide email and password",
       });
     }
 
     // Find user (including password for comparison)
-    const user = await User.findOne({ 
+    const user = await User.findOne({
       where: { email },
-      attributes: { include: ['password'] }
+      attributes: { include: ["password"] },
     });
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Email tidak terdaftar di sistem Dreamlight'
+        message: "Email tidak terdaftar di sistem Dreamlight",
       });
     }
 
@@ -42,7 +43,7 @@ exports.login = async (req, res, next) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Password salah'
+        message: "Password salah",
       });
     }
 
@@ -57,8 +58,8 @@ exports.login = async (req, res, next) => {
       message: `Selamat Datang, ${user.name}!`,
       data: {
         token,
-        user: userResponse
-      }
+        user: userResponse,
+      },
     });
   } catch (error) {
     next(error);
@@ -78,7 +79,7 @@ exports.register = async (req, res, next) => {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'Email already registered'
+        message: "Email already registered",
       });
     }
 
@@ -87,18 +88,18 @@ exports.register = async (req, res, next) => {
       name,
       email,
       password,
-      role: role || 'crew'
+      role: role || "crew",
     });
 
     const token = generateToken(user.id);
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message: "User registered successfully",
       data: {
         token,
-        user: user.toJSON()
-      }
+        user: user.toJSON(),
+      },
     });
   } catch (error) {
     next(error);
@@ -112,7 +113,7 @@ exports.logout = async (req, res, next) => {
   try {
     res.status(200).json({
       success: true,
-      message: 'Anda telah berhasil logout'
+      message: "Anda telah berhasil logout",
     });
   } catch (error) {
     next(error);
@@ -128,7 +129,7 @@ exports.getMe = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: user
+      data: user,
     });
   } catch (error) {
     next(error);
@@ -147,7 +148,7 @@ exports.updateProfile = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -159,8 +160,8 @@ exports.updateProfile = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Profile updated successfully',
-      data: user
+      message: "Profile updated successfully",
+      data: user,
     });
   } catch (error) {
     next(error);
@@ -177,13 +178,13 @@ exports.updatePassword = async (req, res, next) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide current and new password'
+        message: "Please provide current and new password",
       });
     }
 
     // Get user with password
     const user = await User.findByPk(req.user.id, {
-      attributes: { include: ['password'] }
+      attributes: { include: ["password"] },
     });
 
     // Check current password
@@ -192,7 +193,7 @@ exports.updatePassword = async (req, res, next) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Current password is incorrect'
+        message: "Current password is incorrect",
       });
     }
 
@@ -202,7 +203,7 @@ exports.updatePassword = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Password updated successfully'
+      message: "Password updated successfully",
     });
   } catch (error) {
     next(error);
@@ -214,18 +215,44 @@ exports.updatePassword = async (req, res, next) => {
 // @access  Private (Admin)
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.findAll({
-      attributes: { exclude: ['password'] },
-      order: [['created_at', 'DESC']]
+    const { page = 1, limit = 10, search = "", role = "" } = req.query;
+
+    // Cap limit at 100
+    const maxLimit = Math.min(parseInt(limit) || 20, 100);
+    const offset = (parseInt(page) - 1) * maxLimit;
+
+    const where = {};
+
+    // Search by name or email
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    // Filter by role
+    if (role) {
+      where.role = role;
+    }
+
+    const { count, rows: users } = await User.findAndCountAll({
+      where,
+      attributes: { exclude: ["password"] },
+      order: [["created_at", "DESC"]],
+      limit: maxLimit,
+      offset,
     });
 
     res.status(200).json({
       success: true,
       count: users.length,
-      data: users
+      data: users,
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / maxLimit),
     });
   } catch (error) {
     next(error);
   }
 };
-

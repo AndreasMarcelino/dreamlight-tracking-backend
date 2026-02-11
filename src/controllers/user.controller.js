@@ -1,15 +1,20 @@
-const { User, Project, Milestone } = require('../models');
-const { Op } = require('sequelize');
+const { User, Project, Milestone } = require("../models");
+const { Op } = require("sequelize");
 
 // @desc    Get all users
 // @route   GET /api/users
 // @access  Private (Admin)
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const { role, search } = req.query;
+    const { role, search, page = 1, limit = 10 } = req.query;
+
+    // Pagination with cap
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(Math.max(1, parseInt(limit)), 100); // Cap at 100
+    const offset = (pageNum - 1) * limitNum;
 
     const where = {};
-    
+
     // Filter by role
     if (role) {
       where.role = role;
@@ -19,20 +24,25 @@ exports.getAllUsers = async (req, res, next) => {
     if (search) {
       where[Op.or] = [
         { name: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } }
+        { email: { [Op.like]: `%${search}%` } },
       ];
     }
 
-    const users = await User.findAll({
+    const { count, rows: users } = await User.findAndCountAll({
       where,
-      attributes: { exclude: ['password'] },
-      order: [['created_at', 'DESC']]
+      attributes: { exclude: ["password"] },
+      order: [["created_at", "DESC"]],
+      limit: limitNum,
+      offset,
     });
 
     res.status(200).json({
       success: true,
       count: users.length,
-      data: users
+      total: count,
+      page: pageNum,
+      totalPages: Math.ceil(count / limitNum),
+      data: users,
     });
   } catch (error) {
     next(error);
@@ -45,26 +55,26 @@ exports.getAllUsers = async (req, res, next) => {
 exports.getUserById = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.params.id, {
-      attributes: { exclude: ['password'] },
+      attributes: { exclude: ["password"] },
       include: [
         {
           model: Milestone,
-          as: 'milestones',
-          include: ['project']
-        }
-      ]
+          as: "milestones",
+          include: ["project"],
+        },
+      ],
     });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      data: user
+      data: user,
     });
   } catch (error) {
     next(error);
@@ -81,7 +91,7 @@ exports.updateUser = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -90,16 +100,16 @@ exports.updateUser = async (req, res, next) => {
     // Check if email already exists (if changing email)
     if (email && email !== user.email) {
       const existingUser = await User.findOne({
-        where: { 
+        where: {
           email,
-          id: { [Op.ne]: user.id }
-        }
+          id: { [Op.ne]: user.id },
+        },
       });
 
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: 'Email already in use'
+          message: "Email already in use",
         });
       }
     }
@@ -108,7 +118,7 @@ exports.updateUser = async (req, res, next) => {
     await user.update({
       name: name || user.name,
       email: email || user.email,
-      role: role || user.role
+      role: role || user.role,
     });
 
     // Remove password from response
@@ -116,8 +126,8 @@ exports.updateUser = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'User updated successfully',
-      data: updatedUser
+      message: "User updated successfully",
+      data: updatedUser,
     });
   } catch (error) {
     next(error);
@@ -134,7 +144,7 @@ exports.deleteUser = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -142,7 +152,7 @@ exports.deleteUser = async (req, res, next) => {
     if (user.id === req.user.id) {
       return res.status(400).json({
         success: false,
-        message: 'You cannot delete your own account'
+        message: "You cannot delete your own account",
       });
     }
 
@@ -150,14 +160,16 @@ exports.deleteUser = async (req, res, next) => {
     const activeTasks = await Milestone.count({
       where: {
         user_id: user.id,
-        work_status: { [Op.in]: ['Pending', 'In Progress', 'Waiting Approval'] }
-      }
+        work_status: {
+          [Op.in]: ["Pending", "In Progress", "Waiting Approval"],
+        },
+      },
     });
 
     if (activeTasks > 0) {
       return res.status(400).json({
         success: false,
-        message: `Cannot delete user with ${activeTasks} active task(s). Please reassign or complete them first.`
+        message: `Cannot delete user with ${activeTasks} active task(s). Please reassign or complete them first.`,
       });
     }
 
@@ -165,7 +177,7 @@ exports.deleteUser = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: "User deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -182,43 +194,47 @@ exports.getUserStats = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     // Get task statistics
     const totalTasks = await Milestone.count({
-      where: { user_id: user.id }
+      where: { user_id: user.id },
     });
 
     const completedTasks = await Milestone.count({
-      where: { 
+      where: {
         user_id: user.id,
-        work_status: 'Done'
-      }
+        work_status: "Done",
+      },
     });
 
     const activeTasks = await Milestone.count({
-      where: { 
+      where: {
         user_id: user.id,
-        work_status: { [Op.in]: ['Pending', 'In Progress', 'Waiting Approval'] }
-      }
+        work_status: {
+          [Op.in]: ["Pending", "In Progress", "Waiting Approval"],
+        },
+      },
     });
 
-    const totalEarned = await Milestone.sum('honor_amount', {
-      where: {
-        user_id: user.id,
-        payment_status: 'Paid'
-      }
-    }) || 0;
+    const totalEarned =
+      (await Milestone.sum("honor_amount", {
+        where: {
+          user_id: user.id,
+          payment_status: "Paid",
+        },
+      })) || 0;
 
-    const pendingPayment = await Milestone.sum('honor_amount', {
-      where: {
-        user_id: user.id,
-        payment_status: 'Unpaid',
-        work_status: 'Done'
-      }
-    }) || 0;
+    const pendingPayment =
+      (await Milestone.sum("honor_amount", {
+        where: {
+          user_id: user.id,
+          payment_status: "Unpaid",
+          work_status: "Done",
+        },
+      })) || 0;
 
     res.status(200).json({
       success: true,
@@ -228,8 +244,9 @@ exports.getUserStats = async (req, res, next) => {
         activeTasks,
         totalEarned,
         pendingPayment,
-        completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
-      }
+        completionRate:
+          totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      },
     });
   } catch (error) {
     next(error);

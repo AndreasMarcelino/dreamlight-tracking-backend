@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 const {
   getAllProjects,
@@ -7,47 +7,52 @@ const {
   updateProject,
   deleteProject,
   getBroadcasterProjects,
-  getInvestorProjects
-} = require('../controllers/project.controller');
-const { protect, authorize } = require('../middleware/auth.middleware');
-const { validateProject, validate } = require('../middleware/validation.middleware');
+  getInvestorProjects,
+} = require("../controllers/project.controller");
+const { protect, authorize } = require("../middleware/auth.middleware");
+const {
+  validateProject,
+  validate,
+} = require("../middleware/validation.middleware");
+
+// Import crew routes for nested routing
+const projectCrewRoutes = require("./projectcrew.routes");
 
 // All routes require authentication
 router.use(protect);
 
+// Mount crew routes as nested routes: /api/projects/:projectId/crew
+router.use("/:projectId/crew", projectCrewRoutes);
+
 // Broadcaster specific routes
-router.get('/broadcaster/my-projects', 
-  authorize('broadcaster'), 
-  getBroadcasterProjects
+router.get(
+  "/broadcaster/my-projects",
+  authorize("broadcaster"),
+  getBroadcasterProjects,
 );
 
 // Investor specific routes
-router.get('/investor/my-investments', 
-  authorize('investor'), 
-  getInvestorProjects
+router.get(
+  "/investor/my-investments",
+  authorize("investor"),
+  getInvestorProjects,
 );
 
 // General project routes
-router.route('/')
+router
+  .route("/")
   .get(getAllProjects)
   .post(
-    authorize('admin', 'producer'),
+    authorize("admin", "producer"),
     validateProject,
     validate,
-    createProject
+    createProject,
   );
 
-router.route('/:id')
+router
+  .route("/:id")
   .get(getProjectById)
-  .put(
-    authorize('admin', 'producer'),
-    validateProject,
-    validate,
-    updateProject
-  )
-  .delete(
-    authorize('admin'),
-    deleteProject
-  );
+  .put(authorize("admin", "producer"), validateProject, validate, updateProject)
+  .delete(authorize("admin"), deleteProject);
 
 module.exports = router;

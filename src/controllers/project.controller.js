@@ -1,51 +1,113 @@
-const { Project, User, Episode, Milestone, Finance, Asset } = require('../models');
-const { Op } = require('sequelize');
+const {
+  Project,
+  User,
+  Episode,
+  Milestone,
+  Finance,
+  Asset,
+  ProjectCrew,
+} = require("../models");
+const { Op } = require("sequelize");
+const {
+  getProjectFilterForUser,
+} = require("../middleware/accessControl.middleware");
 
-// @desc    Get all projects
+// @desc    Get all projects (filtered by role)
 // @route   GET /api/projects
 // @access  Private
 exports.getAllProjects = async (req, res, next) => {
   try {
-    const { status, type, client_id, investor_id } = req.query;
-    
-    // Build filter object
+    const {
+      status,
+      type,
+      client_id,
+      investor_id,
+      page = 1,
+      limit = 10,
+    } = req.query;
+    const user = req.user;
+
+    // Pagination with cap
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(Math.max(1, parseInt(limit)), 100); // Cap at 100
+    const offset = (pageNum - 1) * limitNum;
+
+    // Build base filter
     const where = {};
     if (status) where.global_status = status;
     if (type) where.type = type;
     if (client_id) where.client_id = client_id;
     if (investor_id) where.investor_id = investor_id;
 
-    const projects = await Project.findAll({
+    // Apply role-based filtering
+    const roleFilter = getProjectFilterForUser(user);
+
+    // For crew, we need special handling via ProjectCrew junction table
+    if (user.role === "crew") {
+      const crewAssignments = await ProjectCrew.findAll({
+        where: { user_id: user.id },
+        attributes: ["project_id"],
+        raw: true,
+      });
+
+      const projectIds = crewAssignments.map((a) => a.project_id);
+
+      if (projectIds.length === 0) {
+        // Crew has no projects assigned
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          data: [],
+        });
+      }
+
+      where.id = { [Op.in]: projectIds };
+    } else if (roleFilter) {
+      Object.assign(where, roleFilter);
+    }
+
+    const { count, rows: projects } = await Project.findAndCountAll({
       where,
       include: [
         {
           model: User,
-          as: 'client',
-          attributes: ['id', 'name', 'email']
+          as: "client",
+          attributes: ["id", "name", "email"],
         },
         {
           model: User,
-          as: 'investor',
-          attributes: ['id', 'name', 'email']
+          as: "investor",
+          attributes: ["id", "name", "email"],
+        },
+        {
+          model: User,
+          as: "producer",
+          attributes: ["id", "name", "email"],
         },
         {
           model: Episode,
-          as: 'episodes',
-          attributes: ['id', 'title', 'episode_number', 'status']
+          as: "episodes",
+          attributes: ["id", "title", "episode_number", "status"],
         },
         {
           model: Milestone,
-          as: 'milestones',
-          attributes: ['id', 'phase_category', 'work_status']
-        }
+          as: "milestones",
+          attributes: ["id", "phase_category", "work_status"],
+        },
       ],
-      order: [['created_at', 'DESC']]
+      order: [["created_at", "DESC"]],
+      limit: limitNum,
+      offset,
+      distinct: true,
     });
 
     res.status(200).json({
       success: true,
       count: projects.length,
-      data: projects
+      total: count,
+      page: pageNum,
+      totalPages: Math.ceil(count / limitNum),
+      data: projects,
     });
   } catch (error) {
     next(error);
@@ -61,60 +123,65 @@ exports.getProjectById = async (req, res, next) => {
       include: [
         {
           model: User,
-          as: 'client',
-          attributes: ['id', 'name', 'email', 'role']
+          as: "client",
+          attributes: ["id", "name", "email", "role"],
         },
         {
           model: User,
-          as: 'investor',
-          attributes: ['id', 'name', 'email', 'role']
+          as: "investor",
+          attributes: ["id", "name", "email", "role"],
+        },
+        {
+          model: User,
+          as: "producer",
+          attributes: ["id", "name", "email", "role"],
         },
         {
           model: Episode,
-          as: 'episodes',
-          order: [['episode_number', 'ASC']]
+          as: "episodes",
+          order: [["episode_number", "ASC"]],
         },
         {
           model: Milestone,
-          as: 'milestones',
+          as: "milestones",
           include: [
             {
               model: User,
-              as: 'user',
-              attributes: ['id', 'name', 'email']
+              as: "user",
+              attributes: ["id", "name", "email"],
             },
             {
               model: Episode,
-              as: 'episode',
-              attributes: ['id', 'title', 'episode_number']
-            }
+              as: "episode",
+              attributes: ["id", "title", "episode_number"],
+            },
           ],
-          order: [['id', 'DESC']]
+          order: [["id", "DESC"]],
         },
         {
           model: Finance,
-          as: 'finances',
-          order: [['transaction_date', 'DESC']]
+          as: "finances",
+          order: [["transaction_date", "DESC"]],
         },
         {
           model: Asset,
-          as: 'assets',
+          as: "assets",
           include: [
             {
               model: User,
-              as: 'uploader',
-              attributes: ['id', 'name']
-            }
+              as: "uploader",
+              attributes: ["id", "name"],
+            },
           ],
-          order: [['created_at', 'DESC']]
-        }
-      ]
+          order: [["created_at", "DESC"]],
+        },
+      ],
     });
 
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: 'Project not found'
+        message: "Project not found",
       });
     }
 
@@ -125,8 +192,8 @@ exports.getProjectById = async (req, res, next) => {
       success: true,
       data: {
         ...project.toJSON(),
-        progress_stats: progressStats
-      }
+        progress_stats: progressStats,
+      },
     });
   } catch (error) {
     next(error);
@@ -142,26 +209,41 @@ exports.createProject = async (req, res, next) => {
       title,
       client_id,
       investor_id,
+      producer_id,
       type,
       total_budget_plan,
       target_income,
       start_date,
       deadline_date,
-      description
+      description,
     } = req.body;
 
     // Get client name if client_id provided
-    let client_name = 'Internal Project';
+    let client_name = "Internal Project";
     if (client_id) {
       const client = await User.findByPk(client_id);
       if (client) client_name = client.name;
     }
 
     // Get investor name if investor_id provided
-    let investor_name = 'Internal Funding';
+    let investor_name = "Internal Funding";
     if (investor_id) {
       const investor = await User.findByPk(investor_id);
       if (investor) investor_name = investor.name;
+    }
+
+    // Get producer name if producer_id provided
+    let producer_name = null;
+    if (producer_id) {
+      const producer = await User.findByPk(producer_id);
+      if (producer && producer.role === "producer") {
+        producer_name = producer.name;
+      } else if (producer) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected user is not a producer",
+        });
+      }
     }
 
     const project = await Project.create({
@@ -170,19 +252,21 @@ exports.createProject = async (req, res, next) => {
       client_name,
       investor_id: investor_id || null,
       investor_name,
+      producer_id: producer_id || null,
+      producer_name,
       type,
       total_budget_plan,
       target_income,
       start_date,
       deadline_date,
       description,
-      global_status: 'Draft'
+      global_status: "Draft",
     });
 
     res.status(201).json({
       success: true,
-      message: 'Project berhasil dibuat!',
-      data: project
+      message: "Project berhasil dibuat!",
+      data: project,
     });
   } catch (error) {
     next(error);
@@ -199,7 +283,7 @@ exports.updateProject = async (req, res, next) => {
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: 'Project not found'
+        message: "Project not found",
       });
     }
 
@@ -207,13 +291,14 @@ exports.updateProject = async (req, res, next) => {
       title,
       client_id,
       investor_id,
+      producer_id,
       type,
       total_budget_plan,
       target_income,
       start_date,
       deadline_date,
       description,
-      global_status
+      global_status,
     } = req.body;
 
     // Update client name if client_id changed
@@ -221,9 +306,9 @@ exports.updateProject = async (req, res, next) => {
     if (client_id !== undefined) {
       if (client_id) {
         const client = await User.findByPk(client_id);
-        client_name = client ? client.name : 'Internal Project';
+        client_name = client ? client.name : "Internal Project";
       } else {
-        client_name = 'Internal Project';
+        client_name = "Internal Project";
       }
     }
 
@@ -232,9 +317,27 @@ exports.updateProject = async (req, res, next) => {
     if (investor_id !== undefined) {
       if (investor_id) {
         const investor = await User.findByPk(investor_id);
-        investor_name = investor ? investor.name : 'Internal Funding';
+        investor_name = investor ? investor.name : "Internal Funding";
       } else {
-        investor_name = 'Internal Funding';
+        investor_name = "Internal Funding";
+      }
+    }
+
+    // Update producer name if producer_id changed
+    let producer_name = project.producer_name;
+    if (producer_id !== undefined) {
+      if (producer_id) {
+        const producer = await User.findByPk(producer_id);
+        if (producer && producer.role === "producer") {
+          producer_name = producer.name;
+        } else if (producer) {
+          return res.status(400).json({
+            success: false,
+            message: "Selected user is not a producer",
+          });
+        }
+      } else {
+        producer_name = null;
       }
     }
 
@@ -243,21 +346,26 @@ exports.updateProject = async (req, res, next) => {
       title: title || project.title,
       client_id: client_id !== undefined ? client_id : project.client_id,
       client_name,
-      investor_id: investor_id !== undefined ? investor_id : project.investor_id,
+      investor_id:
+        investor_id !== undefined ? investor_id : project.investor_id,
       investor_name,
+      producer_id:
+        producer_id !== undefined ? producer_id : project.producer_id,
+      producer_name,
       type: type || project.type,
       total_budget_plan: total_budget_plan || project.total_budget_plan,
       target_income: target_income || project.target_income,
       start_date: start_date || project.start_date,
       deadline_date: deadline_date || project.deadline_date,
-      description: description !== undefined ? description : project.description,
-      global_status: global_status || project.global_status
+      description:
+        description !== undefined ? description : project.description,
+      global_status: global_status || project.global_status,
     });
 
     res.status(200).json({
       success: true,
-      message: 'Project berhasil diperbarui!',
-      data: project
+      message: "Project berhasil diperbarui!",
+      data: project,
     });
   } catch (error) {
     next(error);
@@ -274,7 +382,7 @@ exports.deleteProject = async (req, res, next) => {
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: 'Project not found'
+        message: "Project not found",
       });
     }
 
@@ -282,7 +390,7 @@ exports.deleteProject = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Project berhasil dihapus'
+      message: "Project berhasil dihapus",
     });
   } catch (error) {
     next(error);
@@ -297,84 +405,48 @@ exports.getBroadcasterProjects = async (req, res, next) => {
     const projects = await Project.findAll({
       where: {
         client_id: req.user.id,
-        global_status: { [Op.ne]: 'Finished' }
+        global_status: { [Op.ne]: "Finished" },
       },
       include: [
         {
           model: Episode,
-          as: 'episodes',
-          order: [['episode_number', 'ASC']]
+          as: "episodes",
+          order: [["episode_number", "ASC"]],
         },
         {
-          model: Milestone,
-          as: 'milestones'
+          model: User,
+          as: "producer",
+          attributes: ["id", "name", "email"],
         },
-        {
-          model: Asset,
-          as: 'assets',
-          where: { is_public_to_broadcaster: true },
-          required: false
-        }
       ],
-      order: [['updated_at', 'DESC']]
+      order: [["updated_at", "DESC"]],
     });
 
-    // Build dashboard items with progress stats
-    const dashboardItems = [];
+    // Build project list with progress stats
+    const projectList = [];
 
     for (const project of projects) {
-      if (project.type === 'Series') {
-        // Add each episode as separate item
-        for (const episode of project.episodes) {
-          const progressStats = await episode.getProgressStats();
-          
-          dashboardItems.push({
-            type: 'Episode',
-            title: `Eps ${episode.episode_number}: ${episode.title}`,
-            subtitle: project.title,
-            status: episode.status,
-            project_id: project.id,
-            episode_id: episode.id,
-            progress: progressStats,
-            updated_at: episode.updated_at
-          });
-        }
+      const progressStats = await project.getProgressStats();
 
-        // Handle empty series
-        if (project.episodes.length === 0) {
-          dashboardItems.push({
-            type: 'Series (Empty)',
-            title: project.title,
-            subtitle: 'No Episodes Yet',
-            status: project.global_status,
-            project_id: project.id,
-            progress: { 'Pre-Production': 0, 'Production': 0, 'Post-Production': 0 },
-            updated_at: project.updated_at
-          });
-        }
-      } else {
-        // Single project (Movie, TVC, Event)
-        const progressStats = await project.getProgressStats();
-        
-        dashboardItems.push({
-          type: project.type,
-          title: project.title,
-          subtitle: project.client_name || 'Single Project',
-          status: project.global_status,
-          project_id: project.id,
-          progress: progressStats,
-          updated_at: project.updated_at
-        });
-      }
+      projectList.push({
+        id: project.id,
+        title: project.title,
+        type: project.type,
+        description: project.description,
+        status: project.global_status,
+        start_date: project.start_date,
+        deadline_date: project.deadline_date,
+        producer: project.producer,
+        episode_count: project.episodes?.length || 0,
+        progress: progressStats,
+        updated_at: project.updated_at,
+      });
     }
-
-    // Sort by updated_at descending
-    dashboardItems.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
     res.status(200).json({
       success: true,
-      count: dashboardItems.length,
-      data: dashboardItems
+      count: projectList.length,
+      data: projectList,
     });
   } catch (error) {
     next(error);
@@ -389,92 +461,106 @@ exports.getInvestorProjects = async (req, res, next) => {
     const projects = await Project.findAll({
       where: {
         investor_id: req.user.id,
-        global_status: { [Op.ne]: 'Finished' }
+        global_status: { [Op.ne]: "Finished" },
       },
       include: [
         {
           model: Milestone,
-          as: 'milestones'
+          as: "milestones",
         },
         {
           model: Finance,
-          as: 'finances'
-        }
-      ]
+          as: "finances",
+        },
+      ],
     });
 
     // Calculate statistics
-    const totalInvestment = projects.reduce((sum, p) => sum + parseFloat(p.total_budget_plan), 0);
-    
-    const projectIds = projects.map(p => p.id);
-    
+    const totalInvestment = projects.reduce(
+      (sum, p) => sum + parseFloat(p.total_budget_plan),
+      0,
+    );
+
+    const projectIds = projects.map((p) => p.id);
+
     // Get all finances for these projects
     const allFinances = await Finance.findAll({
-      where: { project_id: projectIds }
+      where: { project_id: projectIds },
     });
 
     const opsExpense = allFinances
-      .filter(f => f.type === 'Expense')
+      .filter((f) => f.type === "Expense")
       .reduce((sum, f) => sum + parseFloat(f.amount), 0);
 
     // Get crew expenses from milestones
-    const crewExpense = await Milestone.sum('honor_amount', {
-      where: {
-        project_id: projectIds,
-        payment_status: 'Paid'
-      }
-    }) || 0;
+    const crewExpense =
+      (await Milestone.sum("honor_amount", {
+        where: {
+          project_id: projectIds,
+          payment_status: "Paid",
+        },
+      })) || 0;
 
     const totalExpenseReal = opsExpense + crewExpense;
 
     const totalIncomeReal = allFinances
-      .filter(f => f.type === 'Income' && f.status === 'Received')
+      .filter((f) => f.type === "Income" && f.status === "Received")
       .reduce((sum, f) => sum + parseFloat(f.amount), 0);
 
     const totalAR = allFinances
-      .filter(f => f.type === 'Income' && f.status === 'Pending')
+      .filter((f) => f.type === "Income" && f.status === "Pending")
       .reduce((sum, f) => sum + parseFloat(f.amount), 0);
 
     // Calculate ROI
     const netProfit = totalIncomeReal - totalExpenseReal;
-    const roiPercentage = totalInvestment > 0 ? (netProfit / totalInvestment) * 100 : 0;
+    const roiPercentage =
+      totalInvestment > 0 ? (netProfit / totalInvestment) * 100 : 0;
 
     // Per-project stats
-    const projectStats = await Promise.all(projects.map(async (p) => {
-      const pFinances = allFinances.filter(f => f.project_id === p.id);
-      
-      const pOpsExpense = pFinances
-        .filter(f => f.type === 'Expense')
-        .reduce((sum, f) => sum + parseFloat(f.amount), 0);
+    const projectStats = await Promise.all(
+      projects.map(async (p) => {
+        const pFinances = allFinances.filter((f) => f.project_id === p.id);
 
-      const pCrewExpense = await Milestone.sum('honor_amount', {
-        where: {
-          project_id: p.id,
-          payment_status: 'Paid'
-        }
-      }) || 0;
+        const pOpsExpense = pFinances
+          .filter((f) => f.type === "Expense")
+          .reduce((sum, f) => sum + parseFloat(f.amount), 0);
 
-      const pTotalExpense = pOpsExpense + pCrewExpense;
+        const pCrewExpense =
+          (await Milestone.sum("honor_amount", {
+            where: {
+              project_id: p.id,
+              payment_status: "Paid",
+            },
+          })) || 0;
 
-      const totalTasks = await Milestone.count({ where: { project_id: p.id } });
-      const doneTasks = await Milestone.count({ 
-        where: { project_id: p.id, work_status: 'Done' } 
-      });
-      const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+        const pTotalExpense = pOpsExpense + pCrewExpense;
 
-      const burnRate = parseFloat(p.total_budget_plan) > 0 
-        ? Math.round((pTotalExpense / parseFloat(p.total_budget_plan)) * 100) 
-        : 0;
+        const totalTasks = await Milestone.count({
+          where: { project_id: p.id },
+        });
+        const doneTasks = await Milestone.count({
+          where: { project_id: p.id, work_status: "Done" },
+        });
+        const progress =
+          totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-      return {
-        title: p.title,
-        budget: parseFloat(p.total_budget_plan),
-        expense_real: pTotalExpense,
-        burn_rate: burnRate,
-        production_progress: progress,
-        status: burnRate > progress ? 'Overbudget' : 'Efficient'
-      };
-    }));
+        const burnRate =
+          parseFloat(p.total_budget_plan) > 0
+            ? Math.round(
+                (pTotalExpense / parseFloat(p.total_budget_plan)) * 100,
+              )
+            : 0;
+
+        return {
+          title: p.title,
+          budget: parseFloat(p.total_budget_plan),
+          expense_real: pTotalExpense,
+          burn_rate: burnRate,
+          production_progress: progress,
+          status: burnRate > progress ? "Overbudget" : "Efficient",
+        };
+      }),
+    );
 
     res.status(200).json({
       success: true,
@@ -484,8 +570,8 @@ exports.getInvestorProjects = async (req, res, next) => {
         totalIncomeReal,
         totalAR,
         roiPercentage: parseFloat(roiPercentage.toFixed(2)),
-        projectStats
-      }
+        projectStats,
+      },
     });
   } catch (error) {
     next(error);
