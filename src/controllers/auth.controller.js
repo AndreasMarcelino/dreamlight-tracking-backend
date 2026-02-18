@@ -239,7 +239,7 @@ exports.getAllUsers = async (req, res, next) => {
     const { count, rows: users } = await User.findAndCountAll({
       where,
       attributes: { exclude: ["password"] },
-      order: [["created_at", "DESC"]],
+      order: [["createdAt", "DESC"]],
       limit: maxLimit,
       offset,
     });

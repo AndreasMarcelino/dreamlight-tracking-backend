@@ -95,10 +95,10 @@ exports.getAllProjects = async (req, res, next) => {
           attributes: ["id", "phase_category", "work_status"],
         },
       ],
-      order: [["created_at", "DESC"]],
       limit: limitNum,
       offset,
       distinct: true,
+      order: [["createdAt", "DESC"]],
     });
 
     res.status(200).json({
@@ -173,7 +173,7 @@ exports.getProjectById = async (req, res, next) => {
               attributes: ["id", "name"],
             },
           ],
-          order: [["created_at", "DESC"]],
+          order: [["createdAt", "DESC"]],
         },
       ],
     });
