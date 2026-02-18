@@ -113,20 +113,48 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Database connection and server start
 const startServer = async () => {
   try {
     await db.authenticate();
     console.log("✓ Database connected successfully");
 
-    // Sync database models (use { force: true } only in development to drop tables)
-    // await db.sync({ alter: true });
+    // Sync database models
+    // Note: Use { alter: true } only when schema changes are needed
+    // Using plain sync() to avoid duplicate index creation
+    await db.sync();
     console.log("✓ Database models synchronized");
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`✓ Server running on port ${PORT}`);
       console.log(`✓ Environment: ${process.env.NODE_ENV}`);
     });
+
+    // Graceful shutdown handling
+    const gracefulShutdown = async (signal) => {
+      console.log(`\n${signal} received. Starting graceful shutdown...`);
+
+      server.close(async () => {
+        console.log("✓ HTTP server closed");
+
+        try {
+          await db.close();
+          console.log("✓ Database connections closed");
+          process.exit(0);
+        } catch (err) {
+          console.error("✗ Error closing database:", err);
+          process.exit(1);
+        }
+      });
+
+      // Force shutdown after 10 seconds
+      setTimeout(() => {
+        console.error("✗ Forced shutdown after timeout");
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   } catch (error) {
     console.error("✗ Unable to start server:", error);
     process.exit(1);
