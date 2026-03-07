@@ -43,8 +43,7 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // ❗ JANGAN throw error
-    return callback(null, false);
+    return callback(new Error(`CORS: origin '${origin}' not allowed`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
