@@ -525,6 +525,7 @@ exports.getDashboard = async (req, res, next) => {
 
     switch (role) {
       case "admin":
+      case "tv_viewer": // TV otomatis akan diarahkan ke tampilan Admin (mendapatkan data global keseluruhan)
         return getAdminDashboard(req, res, next);
       case "producer":
         return getProducerDashboard(req, res, next);

@@ -4,6 +4,14 @@ const { User } = require('../models');
 // Protect routes - verify JWT token
 exports.protect = async (req, res, next) => {
   try {
+    // 1. Cek khusus untuk TV API Key (prioritas utama jika request dari TV)
+    const apiKey = req.headers['x-api-key'];
+    if (apiKey && process.env.TV_API_KEY && apiKey === process.env.TV_API_KEY) {
+      // Buat user virtual/mock agar tidak ditolak di rute yang butuh req.user
+      req.user = { id: 'tv_dashboard', role: 'tv_viewer', name: 'TV Dashboard' };
+      return next();
+    }
+
     let token;
 
     // Check for token in Authorization header
@@ -53,6 +61,11 @@ exports.protect = async (req, res, next) => {
 // Check for specific roles
 exports.authorize = (...roles) => {
   return (req, res, next) => {
+    // Jalur VVIP untuk TV: Izinkan semua request dengan metode GET
+    if (req.user && req.user.role === 'tv_viewer' && req.method === 'GET') {
+      return next();
+    }
+
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,

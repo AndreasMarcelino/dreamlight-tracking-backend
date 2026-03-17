@@ -11,8 +11,8 @@ exports.checkProjectAccess = async (req, res, next) => {
     const { id: projectId } = req.params;
     const user = req.user;
 
-    // Admin always has access
-    if (user.role === "admin") {
+    // Admin and TV Viewer always has access
+    if (user.role === "admin" || (user.role === "tv_viewer" && req.method === "GET")) {
       return next();
     }
 
@@ -84,8 +84,8 @@ exports.checkProducerAccess = async (req, res, next) => {
     const { id: projectId } = req.params;
     const user = req.user;
 
-    // Admin always has access
-    if (user.role === "admin") {
+    // Admin and TV Viewer always has access
+    if (user.role === "admin" || (user.role === "tv_viewer" && req.method === "GET")) {
       return next();
     }
 
@@ -129,8 +129,8 @@ exports.checkCrewAssignment = async (req, res, next) => {
     const { id: projectId } = req.params;
     const user = req.user;
 
-    // Admin and Producer always have access
-    if (user.role === "admin" || user.role === "producer") {
+    // Admin, Producer, and TV Viewer always have access
+    if (user.role === "admin" || user.role === "producer" || (user.role === "tv_viewer" && req.method === "GET")) {
       return next();
     }
 
@@ -167,8 +167,8 @@ exports.checkCrewAssignment = async (req, res, next) => {
  * Returns Sequelize where clause for project filtering
  */
 exports.getProjectFilterForUser = (user) => {
-  // Admin sees all projects
-  if (user.role === "admin") {
+  // Admin and TV Viewer sees all projects
+  if (user.role === "admin" || user.role === "tv_viewer") {
     return {};
   }
 
@@ -206,8 +206,8 @@ exports.getAvailableCrewForUser = async (user, projectId) => {
   const { User } = require("../models");
   const { Op } = require("sequelize");
 
-  // Admin sees all crew
-  if (user.role === "admin") {
+  // Admin and TV Viewer sees all crew
+  if (user.role === "admin" || user.role === "tv_viewer") {
     return await User.findAll({
       where: { role: "crew" },
       attributes: ["id", "name", "email"],
