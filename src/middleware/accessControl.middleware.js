@@ -12,7 +12,10 @@ exports.checkProjectAccess = async (req, res, next) => {
     const user = req.user;
 
     // Admin and TV Viewer always has access
-    if (user.role === "admin" || (user.role === "tv_viewer" && req.method === "GET")) {
+    if (
+      user.role === "admin" ||
+      (user.role === "tv_viewer" && req.method === "GET")
+    ) {
       return next();
     }
 
@@ -85,7 +88,10 @@ exports.checkProducerAccess = async (req, res, next) => {
     const user = req.user;
 
     // Admin and TV Viewer always has access
-    if (user.role === "admin" || (user.role === "tv_viewer" && req.method === "GET")) {
+    if (
+      user.role === "admin" ||
+      (user.role === "tv_viewer" && req.method === "GET")
+    ) {
       return next();
     }
 
@@ -130,7 +136,11 @@ exports.checkCrewAssignment = async (req, res, next) => {
     const user = req.user;
 
     // Admin, Producer, and TV Viewer always have access
-    if (user.role === "admin" || user.role === "producer" || (user.role === "tv_viewer" && req.method === "GET")) {
+    if (
+      user.role === "admin" ||
+      user.role === "producer" ||
+      (user.role === "tv_viewer" && req.method === "GET")
+    ) {
       return next();
     }
 
