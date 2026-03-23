@@ -60,8 +60,8 @@ app.use(cookieParser());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // limit each IP to 300 requests per windowMs
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 1500, // limit each IP to 1500 requests per windowMs
 });
 app.use("/api/", limiter);
 

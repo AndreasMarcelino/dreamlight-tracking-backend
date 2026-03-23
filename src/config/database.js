@@ -31,7 +31,8 @@ const { Sequelize } = require("sequelize");
 
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: "postgres",
-  dialectModule: require('pg'),
+  dialectModule: require("pg"),
+  logging: process.env.NODE_ENV === "development" ? console.log : false, // <--- Tambahkan line ini
   dialectOptions: {
     ssl: {
       require: true,
@@ -39,7 +40,6 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
     },
   },
 });
-
 
 // Connection health check
 sequelize.connectionManager.initPools();
